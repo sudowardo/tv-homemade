@@ -1,8 +1,8 @@
 # tv-homemade
 
-A homemade home screen for a low-RAM Android TV, plus the scripts to debloat it and undo everything.
+A homemade launcher for a low-RAM Android TV, plus the scripts to debloat it and undo everything.
 
-![tv-homemade home screen on a JVC Android TV](docs/home.jpg)
+![tv-homemade launcher running on a JVC Android TV](docs/home.jpg)
 
 Built for my mom's JVC TV (1.5 GB RAM), where the stock launcher alone used about 190 MB and the
 TV felt slow. tv-homemade uses 35-65 MB and only shows what she watches: live TV, a few streaming
@@ -27,7 +27,7 @@ Written in Kotlin with Jetpack Compose, minified with R8. No network access, no 
 Android TVs accept `adb` over the network once network debugging is on. Everything here goes
 through it:
 
-1. `tools\install.ps1` builds the launcher, installs it and makes it the home screen and screensaver.
+1. `tools\install.ps1` builds the launcher, installs it and sets it as the default launcher and screensaver.
 2. `tools\disable.ps1` backs up the package list and settings, then disables the apps in a
    [device list](devices/) with `pm disable-user`. Nothing is uninstalled.
 3. `tools\restore.ps1` re-enables the same list and brings the stock launcher back.
