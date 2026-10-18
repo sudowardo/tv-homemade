@@ -2,6 +2,8 @@
 
 A homemade home screen for a low-RAM Android TV, plus the scripts to debloat it and undo everything.
 
+![tv-homemade home screen on a JVC Android TV](docs/home.jpg)
+
 Built for my mom's JVC TV (1.5 GB RAM), where the stock launcher alone used about 190 MB and the
 TV felt slow. tv-homemade uses 35-65 MB and only shows what she watches: live TV, a few streaming
 apps and the HDMI inputs.
