@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark window background so there is no white flash before Compose draws the first frame. -->
+    <style name="Theme.TvHomemade" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/background</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowFullscreen">true</item>
+    </style>
+
+    <color name="background">#FF0B0D12</color>
+    <string name="app_name">Inicio</string>
+</resources>

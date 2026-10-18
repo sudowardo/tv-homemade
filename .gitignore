@@ -1,0 +1,12 @@
+# TV dumps from tools\disable.ps1: they contain the serial number, android_id and device names.
+backup/
+
+# Optional local SDK and Gradle install used by tools\install.ps1.
+.toolchain/
+
+launcher/.gradle/
+launcher/build/
+launcher/app/build/
+launcher/local.properties
+.idea/
+*.iml

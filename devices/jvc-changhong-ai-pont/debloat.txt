@@ -1,0 +1,28 @@
+# JVC Android TV built by Changhong/Homwee ("AI PONT"), Android TV 11 (SDK 30), 1.5 GB RAM.
+# Fingerprint: JVC/ISDB93JV/sindorim:11/RTO2.230416.001
+#
+# One package per line; text after # is ignored.
+# tools/disable.ps1 runs `pm disable-user --user 0` on each one and tools/restore.ps1 re-enables them.
+
+# Vendor extras
+com.homwee.store                          # Homwee app store, duplicates Play Store
+com.homwee.help                           # Vendor help/manual app
+com.homwee.upgrade                        # Vendor app updater; firmware updates are separate
+android.autoinstalls.config.homwee        # Pushes promoted apps on first boot
+
+# Google extras nobody in the house uses
+com.google.android.feedback               # Feedback reporter
+com.google.android.play.games             # Play Games
+com.google.android.videos                 # Google TV / Play Movies
+com.google.android.syncadapters.calendar  # Calendar sync, no calendar on a TV
+com.google.android.onetimeinitializer     # First-boot setup, already done
+com.google.android.katniss                # Google Assistant and voice search (~46 MB resident)
+com.google.android.marvin.talkback        # Screen reader; keep it if anyone needs accessibility
+
+# System extras
+com.android.printspooler                  # Printing
+com.android.dreams.basic                  # Basic screensaver, replaced by the tv-homemade clock
+
+# Stock home screen. Only safe once tv-homemade is the home app; disable.ps1 checks this.
+com.google.android.tvlauncher             # Stock launcher, ~190 MB while on screen
+com.google.android.tvrecommendations      # Feeds the stock launcher's rows
