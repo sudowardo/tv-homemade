@@ -14,7 +14,7 @@ Inspired by [tv-vibehack](https://github.com/Gathin23/tv-vibehack), which does t
 
 - **Four favorites** in a dock, everything else in a grid below. Long-press any tile and move it
   with the arrow keys; moving between the first grid row and the dock swaps it in or out of the
-  favorites. OK saves the order on the TV.
+  favorites. OK or Back saves the order on the TV.
 - **TV en vivo** always opens the tuner, not whichever HDMI port was used last.
 - **Inputs menu** for HDMI 1-4 and AV, marking the ones the TV reports as connected.
 - A blurred backdrop taken from the focused app, a clock and the date, all in Spanish.
@@ -83,6 +83,8 @@ that, favorites and order are edited on the TV.
 Copy `devices/jvc-changhong-ai-pont/` and write your own `debloat.txt`. Only list packages you have
 checked; the backup in `backup\<timestamp>\` (git-ignored) shows what is installed. Disabling the
 wrong system package can break setup screens or inputs, and the safe list differs per brand.
+`disable.ps1` refuses any list that includes a protected package (Live TV, inputs, remote, Play
+services, ...); see `$ProtectedPackages` in [`tools/common.ps1`](tools/common.ps1).
 
 ## License
 

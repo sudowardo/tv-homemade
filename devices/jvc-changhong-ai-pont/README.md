@@ -21,6 +21,8 @@ Measured with `dumpsys meminfo` on the home screen:
 
 - **Keep** `com.homwee.chtvmanager` (TV Manager), `com.mediatek.wwtv.tvcenter` (Live TV and HDMI inputs),
   Chromecast built-in and the Play Store; everything there is used.
+- **Keep** `com.google.android.tts` even with TalkBack and the Assistant disabled: the Live TV app
+  binds to it while you watch.
 - "Lost RAM" in `dumpsys meminfo` is video hardware memory: about 160 MB at home and 400 MB while
   watching live TV. It is not a leak and cannot be reclaimed.
 - Opening "TV en vivo" with a plain launch intent resumes whatever source was last used (often an
