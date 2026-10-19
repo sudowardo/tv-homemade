@@ -12,8 +12,9 @@ Inspired by [tv-vibehack](https://github.com/Gathin23/tv-vibehack), which does t
 
 ## What you get
 
-- **Four favorites** in a dock, everything else in a grid below. Long-press any tile to add or
-  remove it from favorites, or move it left and right; the order is saved on the TV.
+- **Four favorites** in a dock, everything else in a grid below. Long-press any tile and move it
+  with the arrow keys; moving between the first grid row and the dock swaps it in or out of the
+  favorites. OK saves the order on the TV.
 - **TV en vivo** always opens the tuner, not whichever HDMI port was used last.
 - **Inputs menu** for HDMI 1-4 and AV, marking the ones the TV reports as connected.
 - A blurred backdrop taken from the focused app, a clock and the date, all in Spanish.

@@ -30,11 +30,34 @@ data class TvApp(
 
 data class AppCatalog(val dock: List<TvApp>, val grid: List<TvApp>) {
 
-    fun withFavorite(app: TvApp, favorite: Boolean): AppCatalog = when {
-        favorite && app !in dock && dock.size < MAX_DOCK -> AppCatalog(dock + app, grid - app)
-        // A removed favorite goes to the front of the grid, where it is easy to find again.
-        !favorite && app in dock -> AppCatalog(dock - app, listOf(app) + grid)
-        else -> this
+    /**
+     * Moves [app] between the dock and the start of the grid, keeping the same column. A full dock
+     * swaps places with the tile on the other side instead of growing, and a favorite moved down
+     * always swaps, so the dock never ends up with a gap.
+     */
+    fun withSectionChanged(app: TvApp): AppCatalog {
+        val dockIndex = dock.indexOf(app)
+        if (dockIndex >= 0) {
+            if (grid.isEmpty()) return this
+            val target = minOf(dockIndex, grid.lastIndex)
+            return AppCatalog(
+                dock = dock.toMutableList().apply { set(dockIndex, grid[target]) },
+                grid = grid.toMutableList().apply { set(target, app) },
+            )
+        }
+        val gridIndex = grid.indexOf(app)
+        if (gridIndex < 0) return this
+        if (dock.size < MAX_DOCK) {
+            return AppCatalog(
+                dock = dock.toMutableList().apply { add(minOf(gridIndex, dock.size), app) },
+                grid = grid - app,
+            )
+        }
+        val target = minOf(gridIndex, MAX_DOCK - 1)
+        return AppCatalog(
+            dock = dock.toMutableList().apply { set(target, app) },
+            grid = grid.toMutableList().apply { set(gridIndex, dock[target]) },
+        )
     }
 
     fun withMoved(app: TvApp, delta: Int): AppCatalog = when (app) {

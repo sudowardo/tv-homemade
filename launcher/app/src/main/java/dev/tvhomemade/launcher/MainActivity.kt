@@ -67,8 +67,10 @@ class MainActivity : ComponentActivity() {
                 onOpenSettings = ::openSettings,
                 loadInputs = ::loadInputs,
                 onOpenInput = { startSafely(TvInputs.viewIntent(it), it.label) },
-                onSetFavorite = { app, favorite -> editLayout { it.withFavorite(app, favorite) } },
-                onMove = { app, delta -> editLayout { it.withMoved(app, delta) } },
+                // Each arrow press only reorders on screen; the result is saved once when moving ends.
+                onMove = { app, delta -> rearrange { it.withMoved(app, delta) } },
+                onChangeSection = { app -> rearrange { it.withSectionChanged(app) } },
+                onMoveFinished = { (state.value as? LoadState.Ready)?.let { saveLayout(it.catalog) } },
             )
         }
     }
@@ -107,13 +109,15 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun editLayout(transform: (AppCatalog) -> AppCatalog) {
+    private fun rearrange(transform: (AppCatalog) -> AppCatalog) {
         val current = (state.value as? LoadState.Ready)?.catalog ?: return
         val updated = transform(current)
-        if (updated == current) return
-        state.value = LoadState.Ready(updated)
+        if (updated != current) state.value = LoadState.Ready(updated)
+    }
+
+    private fun saveLayout(catalog: AppCatalog) {
         try {
-            repository.save(updated)
+            repository.save(catalog)
         } catch (e: IllegalStateException) {
             Log.e(TAG, "Could not save the layout", e)
             Toast.makeText(this, "No se pudo guardar el orden; se perderá al reiniciar", Toast.LENGTH_LONG).show()

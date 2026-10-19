@@ -48,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -63,6 +64,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -136,15 +138,13 @@ fun LauncherScreen(
     onOpenSettings: () -> Unit,
     loadInputs: () -> List<TvInputEntry>?,
     onOpenInput: (TvInputEntry) -> Unit,
-    onSetFavorite: (TvApp, Boolean) -> Unit,
     onMove: (TvApp, Int) -> Unit,
+    onChangeSection: (TvApp) -> Unit,
+    onMoveFinished: () -> Unit,
 ) {
     val catalog = (state as? LoadState.Ready)?.catalog
-    // Package of the tile whose options menu is open; looked up again on every change so the
-    // menu always reflects the tile's current position.
-    var optionsFor by remember { mutableStateOf<String?>(null) }
-    // Tile that should take focus on the next frame: the first app on launch, and the edited app
-    // after its menu closes (a tile moved to another grid row is recreated and loses focus).
+    // Tile that should take focus on the next frame: the first app on launch, and the moved app
+    // (a tile that lands in another row or section is recreated and loses focus).
     var pendingFocus by remember { mutableStateOf<String?>(null) }
     var initialFocusDone by remember { mutableStateOf(false) }
     LaunchedEffect(catalog != null) {
@@ -152,23 +152,14 @@ fun LauncherScreen(
         pendingFocus = (catalog.dock + catalog.grid).firstOrNull()?.packageName
         initialFocusDone = true
     }
-    catalog?.let { current ->
-        val app = optionsFor?.let { pkg -> (current.dock + current.grid).find { it.packageName == pkg } }
-        if (app != null) {
-            val close = {
-                optionsFor = null
-                pendingFocus = app.packageName
-            }
-            TileOptionsDialog(
-                app = app,
-                catalog = current,
-                onDismiss = close,
-                onSetFavorite = { favorite ->
-                    close()
-                    onSetFavorite(app, favorite)
-                },
-                onMove = { delta -> onMove(app, delta) },
-            )
+    // Package of the tile being moved with the arrows; null when not in move mode.
+    var movingApp by remember { mutableStateOf<String?>(null) }
+    // Uninstalled mid-move: leave move mode and still save whatever order was reached.
+    LaunchedEffect(catalog, movingApp) {
+        val moving = movingApp ?: return@LaunchedEffect
+        if (catalog != null && (catalog.dock + catalog.grid).none { it.packageName == moving }) {
+            movingApp = null
+            onMoveFinished()
         }
     }
     val scope = rememberCoroutineScope()
@@ -218,16 +209,46 @@ fun LauncherScreen(
                             state.catalog,
                             onFocus = { focusedApp = it },
                             onLaunch = onLaunch,
-                            onOptions = { optionsFor = it.packageName },
+                            onStartMove = { movingApp = it.packageName },
                             focusRequestFor = pendingFocus,
                             onFocusRequested = { pendingFocus = null },
                             onDockFocused = { scope.launch { scrollState.animateScrollTo(0) } },
+                            movingApp = movingApp,
+                            // A tile that lands in another row or section is recreated; hand focus back to it.
+                            onMoveBy = { app, delta ->
+                                onMove(app, delta)
+                                pendingFocus = app.packageName
+                            },
+                            onChangeSection = { app ->
+                                onChangeSection(app)
+                                pendingFocus = app.packageName
+                            },
+                            onMoveDone = {
+                                movingApp = null
+                                onMoveFinished()
+                            },
                         )
                     }
                 }
             }
         }
+        if (movingApp != null) {
+            MoveHint(Modifier.align(Alignment.TopCenter).padding(top = 20.dp))
+        }
     }
+}
+
+/** Fixed to the screen, not the scrolling page, so it stays visible while moving through the grid. */
+@Composable
+private fun MoveHint(modifier: Modifier = Modifier) {
+    BasicText(
+        "Usa las flechas para mover  ·  OK para terminar",
+        style = text(20.sp, FontWeight.Medium, ScreenBackground),
+        modifier = modifier
+            .shadow(12.dp, RoundedCornerShape(50))
+            .background(Color.White, RoundedCornerShape(50))
+            .padding(horizontal = 28.dp, vertical = 12.dp),
+    )
 }
 
 /** [overlay] sits between the app color wash and the dark scrim, so it is dimmed along with it. */
@@ -360,12 +381,41 @@ private fun HomeContent(
     catalog: AppCatalog,
     onFocus: (TvApp) -> Unit,
     onLaunch: (TvApp) -> Unit,
-    onOptions: (TvApp) -> Unit,
+    onStartMove: (TvApp) -> Unit,
     onDockFocused: () -> Unit,
     focusRequestFor: String?,
     onFocusRequested: () -> Unit,
+    movingApp: String?,
+    onMoveBy: (TvApp, Int) -> Unit,
+    onChangeSection: (TvApp) -> Unit,
+    onMoveDone: () -> Unit,
 ) {
     val hasDock = catalog.dock.isNotEmpty()
+    // What each arrow does to the moving tile: a step inside its section, or a jump between the
+    // dock and the first grid row. Null means that arrow does nothing (there is no wrapping).
+    fun moveHandler(app: TvApp, inDock: Boolean): MoveHandler? {
+        if (app.packageName != movingApp) return null
+        val section = if (inDock) catalog.dock else catalog.grid
+        val index = section.indexOf(app)
+        fun within(delta: Int): (() -> Unit)? =
+            if (index + delta in section.indices) ({ onMoveBy(app, delta) }) else null
+        val cross = { onChangeSection(app) }
+        return MoveHandler(
+            left = within(-1),
+            right = within(1),
+            up = when {
+                inDock -> null
+                index < GRID_COLUMNS -> cross
+                else -> within(-GRID_COLUMNS)
+            },
+            down = when {
+                !inDock -> within(GRID_COLUMNS)
+                catalog.grid.isNotEmpty() -> cross
+                else -> null
+            },
+            onDone = onMoveDone,
+        )
+    }
 
     if (hasDock) {
         // The lighter rounded band behind the four favorites is the Apple TV "dock".
@@ -391,9 +441,10 @@ private fun HomeContent(
                             onDockFocused()
                         },
                         onClick = { onLaunch(app) },
-                        onLongClick = { onOptions(app) },
+                        onLongClick = { onStartMove(app) },
                         requestFocus = app.packageName == focusRequestFor,
                         onFocusRequested = onFocusRequested,
+                        move = moveHandler(app, inDock = true),
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -423,9 +474,10 @@ private fun HomeContent(
                             large = false,
                             onFocused = { onFocus(app) },
                             onClick = { onLaunch(app) },
-                            onLongClick = { onOptions(app) },
+                            onLongClick = { onStartMove(app) },
                             requestFocus = app.packageName == focusRequestFor,
                             onFocusRequested = onFocusRequested,
+                            move = moveHandler(app, inDock = false),
                             modifier = Modifier.weight(1f),
                         )
                     }
@@ -445,8 +497,10 @@ private fun AppTile(
     onLongClick: () -> Unit,
     requestFocus: Boolean,
     onFocusRequested: () -> Unit,
+    move: MoveHandler?,
     modifier: Modifier = Modifier,
 ) {
+    val moving = move != null
     var focused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     if (requestFocus) {
@@ -462,7 +516,11 @@ private fun AppTile(
         }
     }
     val scale by animateFloatAsState(
-        targetValue = if (focused) 1.1f else 1f,
+        targetValue = when {
+            moving -> 1.16f
+            focused -> 1.1f
+            else -> 1f
+        },
         animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow),
         label = "tileScale",
     )
@@ -486,6 +544,8 @@ private fun AppTile(
                 focused = state.isFocused
                 if (state.isFocused) onFocused()
             }
+            // Ahead of dpadClickable so OK ends the move instead of launching the app.
+            .then(if (move != null) Modifier.moveKeys(move) else Modifier)
             .dpadClickable(onClick, onLongClick)
             .focusable(),
     ) {
@@ -520,6 +580,71 @@ private fun AppTile(
                 )
                 .border(2.dp, Color.White.copy(alpha = 0.75f), shape),
         )
+        if (move != null) MoveArrows(move, large)
+    }
+}
+
+/** One action per arrow; null where the tile cannot go, which also hides that chevron. */
+private class MoveHandler(
+    val left: (() -> Unit)?,
+    val right: (() -> Unit)?,
+    val up: (() -> Unit)?,
+    val down: (() -> Unit)?,
+    val onDone: () -> Unit,
+)
+
+/** Chevrons on the sides the tile can move to, over a light scrim so they read on any banner. */
+@Composable
+private fun MoveArrows(move: MoveHandler, large: Boolean) {
+    val size = if (large) 34.dp else 26.dp
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.35f))
+            .border(3.dp, Color.White, RoundedCornerShape(if (large) 14.dp else 12.dp))
+            .padding(4.dp),
+    ) {
+        if (move.right != null) Chevron(0f, size, Modifier.align(Alignment.CenterEnd))
+        if (move.left != null) Chevron(180f, size, Modifier.align(Alignment.CenterStart))
+        if (move.down != null) Chevron(90f, size, Modifier.align(Alignment.BottomCenter))
+        if (move.up != null) Chevron(270f, size, Modifier.align(Alignment.TopCenter))
+    }
+}
+
+@Composable
+private fun Chevron(rotation: Float, size: Dp, modifier: Modifier = Modifier) {
+    Image(
+        painter = painterResource(R.drawable.ic_chevron_right),
+        contentDescription = null,
+        colorFilter = ColorFilter.tint(Color.White),
+        modifier = modifier.size(size).graphicsLayer { rotationZ = rotation },
+    )
+}
+
+/**
+ * Arrows reorder, OK or Back finish. Every D-pad key is consumed while moving so focus cannot
+ * wander off to another tile mid-move.
+ *
+ * Move mode starts while OK is still held from the long press, so its release must not end the
+ * move: only a release that follows a fresh press made in move mode counts.
+ */
+private fun Modifier.moveKeys(move: MoveHandler): Modifier = composed {
+    var finishPressed by remember { mutableStateOf(false) }
+    onPreviewKeyEvent { event ->
+        val down = event.type == KeyEventType.KeyDown
+        when (event.key) {
+            Key.DirectionLeft -> if (down) move.left?.invoke()
+            Key.DirectionRight -> if (down) move.right?.invoke()
+            Key.DirectionUp -> if (down) move.up?.invoke()
+            Key.DirectionDown -> if (down) move.down?.invoke()
+            // Finishing on release: acting on press would leave the release to reach whatever has focus next.
+            Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.Back -> when {
+                down && event.nativeKeyEvent.repeatCount == 0 -> finishPressed = true
+                !down && finishPressed -> move.onDone()
+            }
+            else -> return@onPreviewKeyEvent false
+        }
+        true
     }
 }
 
@@ -558,47 +683,6 @@ private fun InputsDialog(
                 trailing = "Conectado".takeIf { input.connected },
                 focusRequester = if (index == 0) firstRow else null,
                 onClick = { onSelect(input) },
-            )
-        }
-    }
-}
-
-/** Opened by holding OK on a tile: pick favorites and reorder without touching the code. */
-@Composable
-private fun TileOptionsDialog(
-    app: TvApp,
-    catalog: AppCatalog,
-    onDismiss: () -> Unit,
-    onSetFavorite: (Boolean) -> Unit,
-    onMove: (Int) -> Unit,
-) {
-    val inDock = app in catalog.dock
-    val row = if (inDock) catalog.dock else catalog.grid
-    val position = row.indexOf(app)
-    val dockFull = catalog.dock.size >= AppCatalog.MAX_DOCK
-    MenuPanel(
-        title = app.label,
-        subtitle = if (inDock) "Favorito ${position + 1} de ${row.size}" else "Más apps · ${position + 1} de ${row.size}",
-        onDismiss = onDismiss,
-        emptyMessage = null,
-    ) { firstRow ->
-        when {
-            inDock -> MenuRow("Quitar de favoritos", focusRequester = firstRow, onClick = { onSetFavorite(false) })
-            !dockFull -> MenuRow("Agregar a favoritos", focusRequester = firstRow, onClick = { onSetFavorite(true) })
-        }
-        // The dialog stays open while moving so the tile can be walked several places in a row.
-        MenuRow(
-            "Mover a la izquierda",
-            focusRequester = if (inDock || !dockFull) null else firstRow,
-            onClick = { onMove(-1) },
-        )
-        MenuRow("Mover a la derecha", onClick = { onMove(1) })
-        MenuRow("Listo", onClick = onDismiss)
-        if (!inDock && dockFull) {
-            BasicText(
-                "Favoritos llenos (máximo ${AppCatalog.MAX_DOCK}). Quita uno para agregar otro.",
-                style = text(16.sp, color = Color.White.copy(alpha = 0.6f)),
-                modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp),
             )
         }
     }
