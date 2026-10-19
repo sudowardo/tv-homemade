@@ -9,6 +9,33 @@ $LauncherPackage = "dev.tvhomemade.launcher"
 $LauncherHome = "$LauncherPackage/.MainActivity"
 $LauncherDream = "$LauncherPackage/.ClockDream"
 
+# Never disabled, whatever a debloat list says: losing one of these means no picture, no remote,
+# no Play apps or no way back over adb. Values say what breaks.
+$ProtectedPackages = [ordered]@{
+    "android"                                 = "core system"
+    "com.android.systemui"                    = "system UI"
+    "com.android.shell"                       = "adb shell"
+    "com.android.providers.settings"          = "system settings storage"
+    "com.android.providers.media"             = "media storage"
+    "com.android.externalstorage"             = "shared storage"
+    "com.google.android.permissioncontroller" = "permission prompts"
+    "com.google.android.packageinstaller"     = "installing apps"
+    "com.android.tv.settings"                 = "Settings app"
+    "com.mediatek.wwtv.tvcenter"              = "Live TV and HDMI switching"
+    "com.mediatek.tvinput"                    = "TV inputs (tuner, HDMI, AV)"
+    "com.android.providers.tv"                = "TV channel storage"
+    "com.android.bluetooth"                   = "Bluetooth remote"
+    "com.google.android.tv.remote.service"    = "remote control service"
+    "com.android.inputdevices"                = "input devices"
+    "com.google.android.inputmethod.latin"    = "on-screen keyboard"
+    "com.google.android.gms"                  = "Play services (YouTube, Netflix, ...)"
+    "com.google.android.gsf"                  = "Google services framework"
+    "com.android.vending"                     = "Play Store"
+    "com.google.android.tungsten.setupwraith" = "setup after a factory reset"
+    "com.mediatek.wwtv.setupwizard"           = "TV setup after a factory reset"
+    $LauncherPackage                          = "tv-homemade launcher"
+}
+
 $script:failures = @()
 
 function Resolve-Adb {
@@ -73,6 +100,14 @@ function Read-PackageList([string]$Path) {
     }
     if (-not $packages) { throw "No packages listed in $Path" }
     @($packages)
+}
+
+function Assert-NoProtectedPackages([string[]]$Packages, [string]$Path) {
+    $hits = $Packages | Where-Object { $ProtectedPackages.Contains($_) }
+    if ($hits) {
+        $details = ($hits | ForEach-Object { "  - $_ ($($ProtectedPackages[$_]))" }) -join "`n"
+        throw "Refusing to run: $Path lists protected packages. Remove them from the list:`n$details"
+    }
 }
 
 function Complete-Run([string]$SuccessMessage) {

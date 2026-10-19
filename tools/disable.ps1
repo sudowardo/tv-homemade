@@ -5,8 +5,9 @@
 .DESCRIPTION
     Uses `pm disable-user --user 0` only: nothing is uninstalled, so tools\restore.ps1 can undo it.
     The backup goes to backup\<timestamp>\ (git-ignored: it contains the serial number and device ids).
-    Refuses to run if the list contains the app currently set as home, so the TV is never left
-    without a home screen; install tv-homemade first with tools\install.ps1.
+    Refuses to run if the list contains a protected package (see $ProtectedPackages in common.ps1)
+    or the app currently set as home, so the TV is never left without a home screen; install
+    tv-homemade first with tools\install.ps1.
 
 .EXAMPLE
     .\tools\disable.ps1 -DryRun
@@ -23,6 +24,7 @@ param(
 if (-not $List) { $List = $DefaultDeviceList }
 
 $packages = Read-PackageList $List
+Assert-NoProtectedPackages $packages $List
 Connect-Tv
 
 if (-not $DryRun) {
